@@ -10,7 +10,9 @@
   "scripts": {
     "login": "node examples/01-login-otp.js",
     "create": "node examples/02-create-article.js",
-    "publish": "node examples/03-upload-image-and-publish.js"
+    "publish": "node examples/03-upload-image-and-publish.js",
+    "update": "node examples/05-update-article.js",
+    "delete": "node examples/04-delete-article.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5"

@@ -28,9 +28,18 @@ node examples/01-login-otp.js
 # 2. 아티클 생성
 node examples/02-create-article.js
 
-# 3. 이미지 업로드 후 발행
+# 3. 이미지 업로드 후 발행 (본문/커버에 이미지 부착)
 node examples/03-upload-image-and-publish.js
+
+# 4. 아티클 수정 (id 인자)
+node examples/05-update-article.js <articleId>
+
+# 5. 아티클 삭제 (id 인자)
+node examples/04-delete-article.js <articleId>
 ```
+
+> 이미지 업로드는 **래스터 포맷만** 지원합니다: JPEG, PNG, WebP, GIF, BMP, TIFF, TGA, PBM, QOI.
+> **SVG 는 미지원** 이므로 PNG/JPEG 로 변환해 사용하세요. MIME 은 `SAMPLE_IMAGE_MIME` 미지정 시 파일 확장자로 자동 추론됩니다.
 
 ## 흐름 요약 (CIBA)
 
