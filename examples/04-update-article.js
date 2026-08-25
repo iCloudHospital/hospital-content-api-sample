@@ -1,6 +1,6 @@
-// examples/05-update-article.js
+// examples/04-update-article.js
 // 기존 아티클을 수정(PUT)한다.
-// 사용법: node examples/05-update-article.js <articleId>
+// 사용법: node examples/04-update-article.js <articleId>
 //
 // languageCode 는 수정할 번역(언어)을 가리킨다. 생성 때 쓴 언어와 맞춰야 해당 번역이 갱신된다.
 
@@ -15,7 +15,7 @@ const articleId = process.argv[2];
 async function main() {
   if (!articleId) {
     throw new Error(
-      "수정할 아티클 id 를 인자로 주세요. 예: node examples/05-update-article.js <articleId>",
+      "수정할 아티클 id 를 인자로 주세요. 예: node examples/04-update-article.js <articleId>",
     );
   }
   if (!HOSPITAL_ID) {

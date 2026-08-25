@@ -32,10 +32,10 @@ node examples/02-create-article.js
 node examples/03-upload-image-and-publish.js
 
 # 4. 아티클 수정 (id 인자)
-node examples/05-update-article.js <articleId>
+node examples/04-update-article.js <articleId>
 
 # 5. 아티클 삭제 (id 인자)
-node examples/04-delete-article.js <articleId>
+node examples/05-delete-article.js <articleId>
 ```
 
 > 이미지 업로드는 **래스터 포맷만** 지원합니다: JPEG, PNG, WebP, GIF, BMP, TIFF, TGA, PBM, QOI.
@@ -50,6 +50,8 @@ node examples/04-delete-article.js <articleId>
 5. 만료 임박 시 `POST /connect/token` (`grant_type=refresh_token`) 으로 갱신
 
 자세한 시퀀스 다이어그램: [docs/auth-flow.md](docs/auth-flow.md)
+
+아티클 생성·수정·삭제 흐름: [docs/content-api-flow.md](docs/content-api-flow.md)
 
 ## 콘텐츠 발행과 revalidate
 
