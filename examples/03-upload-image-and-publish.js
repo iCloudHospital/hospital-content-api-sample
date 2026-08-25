@@ -37,8 +37,9 @@ async function main() {
     name: "Sample Article with Image",
     title: "Sample with Image",
     description: "Image upload example",
-    content: `<p>Uploaded image reference:</p><img src="${media.url}" alt="sample" />`,
-    markdown: `Uploaded image: ${media.url}`,
+    content: `<p>Uploaded image:</p><img src="${media.url}" alt="Sample uploaded image" />`,
+    // SaaS 페이지는 markdown 을 렌더링하므로, 이미지가 실제로 보이도록 markdown 이미지 문법 사용.
+    markdown: `Uploaded image:\n\n![Sample uploaded image](${media.url})`,
     hospitalId: HOSPITAL_ID,
     articleType: "Blog",
     status: ArticleStatus.Active,
