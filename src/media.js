@@ -1,54 +1,26 @@
-// src/media.js — LocalManager Media 업로드 래퍼
-// 1) /manager/media/upload-urls 로 pre-signed URL 발급
-// 2) 반환된 URL로 파일 직접 PUT
-// 3) /manager/media 로 메타데이터 등록 (등록된 mediaId 반환)
+// src/media.js — 이미지 업로드 래퍼
+// 실제 경로: CloudHospital Admin API `POST /api/v1/images` (multipart/form-data, 필드명 "files").
+// 응답: MediaModel[] ({ id, url, thumbnailUrl, ... }). Azure Blob 저장은 서버가 처리한다.
+// (프리사인 URL 방식이 아님)
 
 import fs from "node:fs/promises";
 import path from "node:path";
 import { apiJson } from "./client.js";
 
-const V = "v1";
-
-export async function requestUploadUrl({ fileName, contentType }, options) {
-  return apiJson(
-    `/api/${V}/manager/media/upload-urls`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fileName, contentType }),
-    },
-    options,
-  );
-}
-
-export async function uploadFileToPresignedUrl(presignedUrl, filePath, contentType) {
-  const buffer = await fs.readFile(filePath);
-  const res = await fetch(presignedUrl, {
-    method: "PUT",
-    headers: { "Content-Type": contentType, "x-ms-blob-type": "BlockBlob" },
-    body: buffer,
-  });
-  if (!res.ok) {
-    throw new Error(`Blob PUT failed [${res.status}]: ${await res.text()}`);
+// 로컬 이미지 파일 여러 개 업로드 → MediaModel[]
+export async function uploadImages(filePaths, contentType, options) {
+  const form = new FormData();
+  for (const filePath of filePaths) {
+    const buffer = await fs.readFile(filePath);
+    // Node 20+ 전역 Blob/FormData 사용. multipart boundary/Content-Type 은 fetch 가 자동 설정하므로
+    // 여기서 Content-Type 헤더를 지정하면 안 된다 (client.js 도 지정하지 않음).
+    form.append("files", new Blob([buffer], { type: contentType }), path.basename(filePath));
   }
+  return apiJson("/api/v1/images", { method: "POST", body: form }, options);
 }
 
-export async function registerMedia(payload, options) {
-  return apiJson(
-    `/api/${V}/manager/media`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    },
-    options,
-  );
-}
-
-// 편의: 로컬 파일 하나를 한 번에 업로드
+// 편의: 파일 하나 업로드 → 첫 번째 MediaModel
 export async function uploadImage(filePath, contentType, options) {
-  const fileName = path.basename(filePath);
-  const { uploadUrl, blobUri } = await requestUploadUrl({ fileName, contentType }, options);
-  await uploadFileToPresignedUrl(uploadUrl, filePath, contentType);
-  return registerMedia({ blobUri, contentType, fileName }, options);
+  const medias = await uploadImages([filePath], contentType, options);
+  return Array.isArray(medias) ? medias[0] : medias;
 }
