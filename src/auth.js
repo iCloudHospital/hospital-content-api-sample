@@ -4,17 +4,19 @@
 // Duende IdentityServer의 CIBA 구현 참조: https://docs.duendesoftware.com/identityserver/v7/tokens/ciba/
 //
 // 흐름:
-//   1) POST /connect/ciba   — login_hint(이메일) 전송, auth_req_id 반환. 서버가 이메일 OTP 발송.
-//   2) 사용자가 OTP 입력·승인 (별도 채널)
-//   3) POST /connect/token (grant_type=urn:openid:params:grant-type:ciba, auth_req_id=...) 로 폴링
-//      - 400 authorization_pending: 사용자 미완료, interval 후 재시도
-//      - 400 slow_down: 폴링 간격 늘리고 재시도
-//      - 400 expired_token / access_denied: 실패 종료
+//   1) POST /connect/ciba        — login_hint(이메일) 전송, auth_req_id 반환. 서버가 이메일 OTP 발송.
+//   2) POST /ciba/signInRequest  — 사용자가 받은 6자리 OTP 제출로 auth_req_id 승인 (JSON, 클라이언트 인증 불필요)
+//   3) POST /connect/token (grant_type=urn:openid:params:grant-type:ciba, auth_req_id=...) 로 토큰 획득
+//      - 2)에서 이미 승인됐으므로 즉시 200. (서버 지연 대비 authorization_pending/slow_down 시 재시도)
 //      - 200 { access_token, refresh_token, expires_in, id_token, token_type }
 //   4) refresh: POST /connect/token (grant_type=refresh_token, refresh_token=...)
+//
+// 참고: 이 흐름은 iCloudHospital saas-next / @icloudhospital/identity 구현과 동일.
+//       클라이언트 인증은 /connect/* 에서 HTTP Basic(client_secret_basic) 사용, 서버가 허용.
 
 import fs from "node:fs/promises";
 import path from "node:path";
+import { fetchRetry } from "./http.js";
 
 const {
   STS_ISSUER,
@@ -46,7 +48,7 @@ function basicAuthHeader() {
 
 async function postForm(url, params) {
   const body = new URLSearchParams(params).toString();
-  const res = await fetch(url, {
+  const res = await fetchRetry(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -83,14 +85,47 @@ export async function requestCibaAuthorization({ email = MANAGER_EMAIL, bindingM
   return body;
 }
 
-// 2단계: token endpoint 폴링
+// 2단계: 사용자가 이메일로 받은 6자리 OTP를 제출해 auth_req_id 승인
+//   POST {issuer}/ciba/signInRequest  (JSON body, 별도 클라이언트 인증 없음)
+//   body: { requestId, code, scope: string[] }
+//   200 { subject, customResponse, isError, error, errorDescription } — isError=true면 코드 오류/만료
+export async function submitCibaOtp(authReqId, code, { scope = STS_SCOPE } = {}) {
+  const url = `${STS_ISSUER.replace(/\/$/, "")}/ciba/signInRequest`;
+  const res = await fetchRetry(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      requestId: authReqId,
+      code: String(code).trim(),
+      scope: (scope ?? "").split(" ").filter(Boolean),
+    }),
+  });
+  const text = await res.text();
+  let body;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    body = { raw: text };
+  }
+  // HTTP 오류거나 isError=true(코드 오류/만료) 모두 실패로 처리
+  if (res.status !== 200 || body?.isError) {
+    const msg = body?.errorDescription ?? body?.error ?? body?.raw ?? res.statusText;
+    throw new Error(`OTP verification failed [${res.status}]: ${msg}`);
+  }
+  return body;
+}
+
+// 3단계: token endpoint. 2단계 승인 후엔 1회로 즉시 발급되지만,
+// 서버 반영 지연 대비해 authorization_pending/slow_down 이면 재시도한다.
 export async function pollCibaToken(authReqId, { interval = pollInterval, timeout = pollTimeout } = {}) {
   const url = `${STS_ISSUER.replace(/\/$/, "")}/connect/token`;
   const deadline = Date.now() + timeout;
   let currentInterval = interval;
+  let first = true;
 
   while (Date.now() < deadline) {
-    await sleep(currentInterval);
+    if (!first) await sleep(currentInterval); // 승인 직후 첫 시도는 즉시
+    first = false;
     const { status, body } = await postForm(url, {
       grant_type: "urn:openid:params:grant-type:ciba",
       auth_req_id: authReqId,
@@ -124,7 +159,10 @@ export async function refreshTokens(refreshToken) {
   if (status !== 200) {
     throw new Error(`Refresh failed [${status}]: ${JSON.stringify(body)}`);
   }
-  return normalizeTokens(body);
+  const refreshed = normalizeTokens(body);
+  // 서버가 refresh_token 을 회전(rotate)하지 않으면 응답에 없을 수 있음 → 기존 것 유지.
+  // (saas-next auth.ts 의 `refresh_token: newTokens.refresh_token ?? token.refresh_token` 와 동일)
+  return { ...refreshed, refresh_token: refreshed.refresh_token ?? refreshToken };
 }
 
 function normalizeTokens(body) {
