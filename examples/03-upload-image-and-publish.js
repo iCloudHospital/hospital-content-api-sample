@@ -8,6 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { uploadImage } from "../src/media.js";
 import { createArticle, revalidateArticle, ArticleStatus } from "../src/articles.js";
+import { describeError } from "../src/http.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOSPITAL_ID = process.env.HOSPITAL_ID;
@@ -49,7 +50,7 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(`[03] ✗ ${err.message}`);
+  console.error(`[03] ✗ ${describeError(err)}`);
   if (err.body) console.error(err.body);
   process.exit(1);
 });

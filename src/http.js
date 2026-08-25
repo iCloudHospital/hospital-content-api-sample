@@ -16,6 +16,21 @@ const TRANSIENT_CODES = new Set([
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// 에러를 사람이 읽기 좋게 포맷. fetch 실패는 err.message 가 "fetch failed" 뿐이라
+// 진짜 원인(err.cause: DNS ENOTFOUND, 대상 호스트 등)을 함께 노출한다.
+export function describeError(err) {
+  let out = err?.message ?? String(err);
+  if (err?.status) out += ` (status ${err.status})`;
+  const cause = err?.cause;
+  if (cause) {
+    const code = cause.code ?? cause.errno ?? "";
+    const detail = cause.message ?? String(cause);
+    out += `\n  ↳ cause: ${[code, detail].filter(Boolean).join(" — ")}`;
+    if (cause.hostname) out += ` (host: ${cause.hostname})`;
+  }
+  return out;
+}
+
 export async function fetchRetry(url, init = {}, { retries = 4, baseDelayMs = 400 } = {}) {
   let lastError;
   for (let attempt = 0; attempt <= retries; attempt++) {

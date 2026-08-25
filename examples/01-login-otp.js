@@ -7,6 +7,7 @@ import "dotenv/config";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { requestCibaAuthorization, submitCibaOtp, pollCibaToken, saveTokens } from "../src/auth.js";
+import { describeError } from "../src/http.js";
 
 async function main() {
   console.log(`[login] Requesting OTP for ${process.env.MANAGER_EMAIL}...`);
@@ -36,6 +37,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(`[login] ✗ ${err.message}`);
+  console.error(`[login] ✗ ${describeError(err)}`);
   process.exit(1);
 });
