@@ -12,8 +12,9 @@ import { describeError } from "../src/http.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOSPITAL_ID = process.env.HOSPITAL_ID;
-const IMAGE_PATH = process.env.SAMPLE_IMAGE_PATH ?? path.join(__dirname, "..", "assets", "sample.jpg");
-const IMAGE_MIME = process.env.SAMPLE_IMAGE_MIME ?? "image/jpeg";
+// 빈 문자열(.env 에 SAMPLE_IMAGE_PATH= 로 비워둔 경우)도 기본값으로 폴백하도록 || 사용
+const IMAGE_PATH = process.env.SAMPLE_IMAGE_PATH || path.join(__dirname, "..", "assets", "sample.jpg");
+const IMAGE_MIME = process.env.SAMPLE_IMAGE_MIME || "image/jpeg";
 
 async function main() {
   if (!HOSPITAL_ID) {
