@@ -8,42 +8,45 @@
 
 ## 시퀀스 다이어그램
 
-```
-┌────────┐        ┌────────────────┐      ┌─────────────┐   ┌──────────────┐
-│ Client │        │ IdentityServer │      │ Content API │   │ Manager Email│
-└───┬────┘        └───────┬────────┘      └──────┬──────┘   └──────┬───────┘
-    │ 1. POST /connect/ciba (login_hint=email)   │                 │
-    │───────────────────>│                        │                 │
-    │                    │  6자리 OTP 이메일 발송   │                 │
-    │                    │──────────────────────────────────────────>
-    │ auth_req_id, interval, expires_in           │                 │
-    │<───────────────────│                         │                 │
-    │                    │                         │                 │
-    │ (사용자가 이메일에서 OTP 확인 → 콘솔에 입력)  │                 │
-    │                    │                         │                 │
-    │ 2. POST /ciba/signInRequest                  │                 │
-    │    { requestId, code, scope[] }  (OTP 제출)   │                 │
-    │───────────────────>│                         │                 │
-    │ 200 { isError:false } (auth_req_id 승인됨)    │                 │
-    │<───────────────────│                         │                 │
-    │                    │                         │                 │
-    │ 3. POST /connect/token                       │                 │
-    │    grant=urn:openid:params:grant-type:ciba   │                 │
-    │    auth_req_id=...  (승인됐으므로 즉시 성공)   │                 │
-    │───────────────────>│                         │                 │
-    │ 200 { access_token, refresh_token, ... }     │                 │
-    │<───────────────────│                         │                 │
-    │                    │                         │                 │
-    │ 4. /api/v1/articles, /api/v1/images ...      │                 │
-    │    Authorization: Bearer <access_token>      │                 │
-    │────────────────────────────────────────────>│                 │
-    │ 200 (JSON)                                   │                 │
-    │<────────────────────────────────────────────│                 │
-    │                    │                         │                 │
-    │ 5. 갱신: POST /connect/token (grant=refresh_token)              │
-    │───────────────────>│                         │                 │
-    │ 200 { access_token, ... }                    │                 │
-    │<───────────────────│                         │                 │
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant STS as IdentityServer
+    participant API as Content API
+    participant Mail as Manager Email
+
+    rect rgb(240, 246, 252)
+    Note over C,STS: 1) 로그인 요청 (CIBA)
+    C->>STS: POST /connect/ciba (login_hint=email, scope)
+    STS->>Mail: 6자리 OTP 이메일 발송
+    STS-->>C: auth_req_id, interval, expires_in
+    end
+
+    Note over C: 사용자가 이메일에서 OTP 확인 → 콘솔 입력
+
+    rect rgb(240, 246, 252)
+    Note over C,STS: 2) OTP 제출 (auth_req_id 승인)
+    C->>STS: POST /ciba/signInRequest {requestId, code, scope[]}
+    STS-->>C: 200 {isError:false}
+    end
+
+    rect rgb(240, 246, 252)
+    Note over C,STS: 3) 토큰 발급 (승인됐으므로 즉시)
+    C->>STS: POST /connect/token (grant=ciba, auth_req_id)
+    STS-->>C: 200 {access_token, refresh_token, ...}
+    end
+
+    rect rgb(237, 247, 237)
+    Note over C,API: 4) Content API 호출
+    C->>API: GET/POST /api/v1/articles, /api/v1/images (Bearer)
+    API-->>C: 200 (JSON)
+    end
+
+    rect rgb(252, 248, 227)
+    Note over C,STS: 5) 토큰 갱신 (만료 임박 시)
+    C->>STS: POST /connect/token (grant=refresh_token)
+    STS-->>C: 200 {access_token, ...}
+    end
 ```
 
 ## 엔드포인트 상세
