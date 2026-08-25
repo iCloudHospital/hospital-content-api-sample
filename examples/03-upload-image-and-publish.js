@@ -44,9 +44,14 @@ async function main() {
   });
   console.log(`[create] ✓ article.id=${article.id} status=${article.status}`);
 
-  console.log(`[publish] Revalidating (SaaS 반영)...`);
-  await revalidateArticle(article.id);
-  console.log(`[publish] ✓ Revalidate 요청 완료. slug=${article.slug ?? "(pending)"}`);
+  // 발행(Active) 상태일 때만 SaaS 반영. Draft/Archived 는 색인 대상이 아니므로 생략한다.
+  if (article.status === ArticleStatus.Active) {
+    console.log(`[publish] status=Active → revalidate (SaaS 반영)...`);
+    await revalidateArticle(article.id);
+    console.log(`[publish] ✓ Revalidate 요청 완료. slug=${article.slug ?? "(pending)"}`);
+  } else {
+    console.log(`[publish] status=${article.status} → 미발행이므로 revalidate 생략.`);
+  }
 }
 
 main().catch((err) => {
