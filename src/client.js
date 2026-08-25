@@ -4,6 +4,7 @@
 // - 429 시 Retry-After 헤더 존중 + 지수 백오프
 
 import { getOrRefreshTokens, refreshTokens, saveTokens, loadTokens } from "./auth.js";
+import { fetchRetry } from "./http.js";
 
 const API_BASE = (process.env.API_BASE_URL ?? "").replace(/\/$/, "");
 
@@ -16,7 +17,7 @@ async function withBearer(path, init = {}, tokens) {
   const headers = new Headers(init.headers ?? {});
   headers.set("Authorization", `Bearer ${tokens.access_token}`);
   if (!headers.has("Accept")) headers.set("Accept", "application/json");
-  return fetch(url, { ...init, headers });
+  return fetchRetry(url, { ...init, headers });
 }
 
 async function refreshAndSave(oldTokens) {

@@ -16,6 +16,7 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
+import { fetchRetry } from "./http.js";
 
 const {
   STS_ISSUER,
@@ -47,7 +48,7 @@ function basicAuthHeader() {
 
 async function postForm(url, params) {
   const body = new URLSearchParams(params).toString();
-  const res = await fetch(url, {
+  const res = await fetchRetry(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -90,7 +91,7 @@ export async function requestCibaAuthorization({ email = MANAGER_EMAIL, bindingM
 //   200 { subject, customResponse, isError, error, errorDescription } — isError=true면 코드 오류/만료
 export async function submitCibaOtp(authReqId, code, { scope = STS_SCOPE } = {}) {
   const url = `${STS_ISSUER.replace(/\/$/, "")}/ciba/signInRequest`;
-  const res = await fetch(url, {
+  const res = await fetchRetry(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({
