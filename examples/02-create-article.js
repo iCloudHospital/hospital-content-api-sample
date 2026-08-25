@@ -8,6 +8,9 @@ import { createArticle, revalidateArticle, ArticleStatus } from "../src/articles
 import { describeError } from "../src/http.js";
 
 const HOSPITAL_ID = process.env.HOSPITAL_ID;
+// 아티클 언어 (.env ARTICLE_LANGUAGE_CODE, 기본 en-US). admin UI/목록이 이 언어로 필터링됩니다.
+// admin UI 기본 언어가 en-US 라 기본값을 en-US 로 둠. 한국어 콘텐츠면 ko / ko-KR 로 바꾸세요.
+const LANGUAGE_CODE = process.env.ARTICLE_LANGUAGE_CODE || "en-US";
 
 async function main() {
   if (!HOSPITAL_ID) {
@@ -15,12 +18,12 @@ async function main() {
   }
 
   const article = {
-    languageCode: "ko", // "ko" 또는 "ko-KR"
-    name: "샘플 아티클 — API로 등록",
-    title: "샘플 아티클",
-    description: "샘플 예제 아티클",
-    content: "<p>이 아티클은 hospital-content-api-sample 예제로 생성되었습니다.</p>",
-    markdown: "이 아티클은 hospital-content-api-sample 예제로 생성되었습니다.",
+    languageCode: LANGUAGE_CODE, // .env ARTICLE_LANGUAGE_CODE (기본 en-US). "en-US" 또는 "ko" 등
+    name: "Sample Article — Created via API",
+    title: "Sample Article",
+    description: "Sample example article",
+    content: "<p>This article was created by the hospital-content-api-sample example.</p>",
+    markdown: "This article was created by the hospital-content-api-sample example.",
     hospitalId: HOSPITAL_ID,
     articleType: "Blog", // ArticleType enum (Blog, News, MedicalContent, Press, Insights ...)
     status: ArticleStatus.Active, // 발행 상태로 생성
