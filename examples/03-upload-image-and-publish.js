@@ -7,7 +7,11 @@ import "dotenv/config";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { uploadImage } from "../src/media.js";
-import { createArticle, revalidateArticle, ArticleStatus } from "../src/articles.js";
+import {
+  createArticle,
+  revalidateArticle,
+  ArticleStatus,
+} from "../src/articles.js";
 import { describeError } from "../src/http.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -15,18 +19,25 @@ const HOSPITAL_ID = process.env.HOSPITAL_ID;
 // 아티클 언어 (.env ARTICLE_LANGUAGE_CODE, 기본 en-US). admin UI 기본 언어가 en-US 라 기본값도 en-US.
 const LANGUAGE_CODE = process.env.ARTICLE_LANGUAGE_CODE || "en-US";
 // 빈 문자열(.env 에 SAMPLE_IMAGE_PATH= 로 비워둔 경우)도 기본값으로 폴백하도록 || 사용
-const IMAGE_PATH = process.env.SAMPLE_IMAGE_PATH || path.join(__dirname, "..", "assets", "sample.jpg");
-const IMAGE_MIME = process.env.SAMPLE_IMAGE_MIME || "image/jpeg";
+const IMAGE_PATH =
+  process.env.SAMPLE_IMAGE_PATH ||
+  path.join(__dirname, "..", "assets", "cloudhospital.webp");
+// MIME 을 지정하지 않으면(빈 값) media.js 가 파일 확장자로 자동 추론한다. 필요 시 .env 로 override.
+const IMAGE_MIME = process.env.SAMPLE_IMAGE_MIME || undefined;
 
 async function main() {
   if (!HOSPITAL_ID) {
-    throw new Error("HOSPITAL_ID 환경변수가 필요합니다. .env 에 병원 ID(GUID)를 설정하세요.");
+    throw new Error(
+      "HOSPITAL_ID 환경변수가 필요합니다. .env 에 병원 ID(GUID)를 설정하세요.",
+    );
   }
 
   console.log(`[upload] Uploading image: ${IMAGE_PATH}`);
   const media = await uploadImage(IMAGE_PATH, IMAGE_MIME, {
     onNeedsOtp: () => {
-      throw new Error("Tokens missing/expired. Run: node examples/01-login-otp.js");
+      throw new Error(
+        "Tokens missing/expired. Run: node examples/01-login-otp.js",
+      );
     },
   });
   console.log(`[upload] ✓ media.id=${media.id} url=${media.url}`);
@@ -37,8 +48,9 @@ async function main() {
     name: "Sample Article with Image",
     title: "Sample with Image",
     description: "Image upload example",
-    content: `<p>Uploaded image reference:</p><img src="${media.url}" alt="sample" />`,
-    markdown: `Uploaded image: ${media.url}`,
+    content: `<p>Uploaded image:</p><img src="${media.url}" alt="Sample uploaded image" />`,
+    // SaaS 페이지는 markdown 을 렌더링하므로, 이미지가 실제로 보이도록 markdown 이미지 문법 사용.
+    markdown: `Uploaded image:\n\n![Sample uploaded image](${media.url})`,
     hospitalId: HOSPITAL_ID,
     articleType: "Blog",
     status: ArticleStatus.Active,
@@ -51,9 +63,13 @@ async function main() {
   if (article.status === ArticleStatus.Active) {
     console.log(`[publish] status=Active → revalidate (SaaS 반영)...`);
     await revalidateArticle(article.id);
-    console.log(`[publish] ✓ Revalidate 요청 완료. slug=${article.slug ?? "(pending)"}`);
+    console.log(
+      `[publish] ✓ Revalidate 요청 완료. slug=${article.slug ?? "(pending)"}`,
+    );
   } else {
-    console.log(`[publish] status=${article.status} → 미발행이므로 revalidate 생략.`);
+    console.log(
+      `[publish] status=${article.status} → 미발행이므로 revalidate 생략.`,
+    );
   }
 }
 
