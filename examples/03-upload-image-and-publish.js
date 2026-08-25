@@ -12,6 +12,8 @@ import { describeError } from "../src/http.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOSPITAL_ID = process.env.HOSPITAL_ID;
+// 아티클 언어 (.env ARTICLE_LANGUAGE_CODE, 기본 en-US). admin UI 기본 언어가 en-US 라 기본값도 en-US.
+const LANGUAGE_CODE = process.env.ARTICLE_LANGUAGE_CODE || "en-US";
 // 빈 문자열(.env 에 SAMPLE_IMAGE_PATH= 로 비워둔 경우)도 기본값으로 폴백하도록 || 사용
 const IMAGE_PATH = process.env.SAMPLE_IMAGE_PATH || path.join(__dirname, "..", "assets", "sample.jpg");
 const IMAGE_MIME = process.env.SAMPLE_IMAGE_MIME || "image/jpeg";
@@ -31,7 +33,7 @@ async function main() {
 
   console.log(`[create] Creating article with image reference...`);
   const article = await createArticle({
-    languageCode: "ko",
+    languageCode: LANGUAGE_CODE,
     name: "이미지 포함 샘플 아티클",
     title: "이미지 포함 샘플",
     description: "이미지 업로드 예제",
