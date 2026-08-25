@@ -34,11 +34,11 @@ async function main() {
   console.log(`[create] Creating article with image reference...`);
   const article = await createArticle({
     languageCode: LANGUAGE_CODE,
-    name: "이미지 포함 샘플 아티클",
-    title: "이미지 포함 샘플",
-    description: "이미지 업로드 예제",
-    content: `<p>업로드된 이미지 참조:</p><img src="${media.url}" alt="sample" />`,
-    markdown: `업로드된 이미지: ${media.url}`,
+    name: "Sample Article with Image",
+    title: "Sample with Image",
+    description: "Image upload example",
+    content: `<p>Uploaded image reference:</p><img src="${media.url}" alt="sample" />`,
+    markdown: `Uploaded image: ${media.url}`,
     hospitalId: HOSPITAL_ID,
     articleType: "Blog",
     status: ArticleStatus.Active,

@@ -19,11 +19,11 @@ async function main() {
 
   const article = {
     languageCode: LANGUAGE_CODE, // .env ARTICLE_LANGUAGE_CODE (기본 en-US). "en-US" 또는 "ko" 등
-    name: "샘플 아티클 — API로 등록",
-    title: "샘플 아티클",
-    description: "샘플 예제 아티클",
-    content: "<p>이 아티클은 hospital-content-api-sample 예제로 생성되었습니다.</p>",
-    markdown: "이 아티클은 hospital-content-api-sample 예제로 생성되었습니다.",
+    name: "Sample Article — Created via API",
+    title: "Sample Article",
+    description: "Sample example article",
+    content: "<p>This article was created by the hospital-content-api-sample example.</p>",
+    markdown: "This article was created by the hospital-content-api-sample example.",
     hospitalId: HOSPITAL_ID,
     articleType: "Blog", // ArticleType enum (Blog, News, MedicalContent, Press, Insights ...)
     status: ArticleStatus.Active, // 발행 상태로 생성
