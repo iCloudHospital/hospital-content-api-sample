@@ -13,9 +13,12 @@ Content-Type: application/json      # 이미지 업로드는 multipart/form-data
 ```
 
 핵심 개념:
-- **발행 여부는 `status` 필드로 제어** (`Draft` / `Active` / `Archived`). 별도 publish 엔드포인트 없음.
-- 발행(`Active`) 후 **공개 사이트 반영은 `/revalidate`** 로 트리거 (자세한 내용: [README](../README.md#콘텐츠-발행과-revalidate)).
+- **공개 조건은 4가지 AND**: `status == Active` **AND** 해당 언어 번역의 `IsConfirmed == true` **AND** 미삭제 **AND** 미숨김. 별도 publish 엔드포인트 없음.
+  - `confirmed` 가 **두 번째 독립 발행 스위치**다. Admin 조회에는 이 필터가 없어 **관리 화면에는 보이는데 공개 사이트에는 안 보이는** 상태가 생긴다.
+- 발행 후 **공개 사이트 반영은 `/revalidate?includeCurrent=true`** 로 트리거 (`includeCurrent` 없으면 no-op — 아래 3절).
 - 아티클은 언어별 번역을 가지며, `languageCode` 로 대상 번역을 지정 (목록/조회도 이 언어로 필터링됨).
+  해당 언어 번역이 없으면 **수정이 아니라 INSERT** 된다(upsert).
+- 부분 수정은 `PATCH`, 전체 덮어쓰기는 `PUT`. **자동화·스크립트는 `PATCH` 권장** (아래 5절).
 
 ## 시퀀스 다이어그램
 
@@ -39,14 +42,15 @@ sequenceDiagram
     end
 
     rect rgb(252, 248, 227)
-    Note over C,API: 발행 반영 (status=Active 일 때)
-    C->>API: POST /api/v1/articles/{id}/revalidate
+    Note over C,API: 발행 반영 (status=Active + confirmed=true 일 때)
+    C->>API: POST /api/v1/articles/{id}/revalidate?includeCurrent=true
     API-->>C: 200
     end
 
     rect rgb(240, 246, 252)
     Note over C,API: 수정
-    C->>API: PUT /api/v1/articles/{id} {변경 필드}
+    C->>API: PATCH /api/v1/articles/{id} {변경 필드만}  ← 권장
+    C->>API: PUT /api/v1/articles/{id} {전체 필드 + confirmed}
     API-->>C: 200 ArticleModel
     end
 
@@ -108,8 +112,18 @@ POST {API_BASE_URL}/api/v1/articles
 `status: "Active"` 로 저장해도 SaaS 공개 사이트는 캐시(ISR)라 즉시 반영되지 않습니다. 아래로 재검증을 트리거합니다. (`Draft`/`Archived` 는 불필요)
 
 ```
-POST {API_BASE_URL}/api/v1/articles/{articleId}/revalidate
+POST {API_BASE_URL}/api/v1/articles/{articleId}/revalidate?includeCurrent=true
 ```
+
+⚠️ **`includeCurrent=true` 가 없으면 아무 일도 일어나지 않는다.** 서버 핸들러는 재검증 잡을
+`if (request.IncludeCurrent)` 안에서만 큐에 넣고, 컨트롤러의 기본값은 `false` 다. 파라미터를 빼면
+잡이 돌지 않은 채 `200 true` 가 돌아와 **성공한 것처럼 보인다.**
+
+`includeCurrent` 는 "연관 엔티티 캐스케이드와 별개로, 지목한 엔티티 **자신의** 페이지도 재검증"이라는
+서버 전역 컨벤션이다. Hospital 처럼 캐스케이드가 있는 엔티티는 이 플래그 없이도 일부 동작하지만,
+**Article 은 캐스케이드 대상이 없어 이 분기가 동작의 전부다.**
+
+재검증 대상은 해당 아티클의 **모든 언어 번역 slug + 과거 slug(리다이렉트용)** 페이지다.
 
 ### 4) 조회 / 목록
 
@@ -120,24 +134,63 @@ GET {API_BASE_URL}/api/v1/articles?hospitalId={GUID}&languageCode=en-US&page=1&p
 
 - `languageCode` 를 생성 때와 맞추지 않으면(기본 en-US) 해당 번역이 없어 **조회/목록에서 빠질 수 있음**. `returnDefaultValue=true` 로 기본 언어 값 폴백 가능.
 
-### 5) 아티클 수정
+### 5) 아티클 수정 — `PATCH` 권장
 
-전체 수정은 `PUT`(생성과 유사한 본문, `status`·`articleType` 는 선택), 부분 수정은 `PATCH`.
+|  | `PUT /{articleId}` | `PATCH /{articleId}` |
+|---|---|---|
+| 동작 | 전체 덮어쓰기 | 보낸 필드만 반영 (null-coalescing 병합) |
+| 생략한 필드 | **기본값으로 덮어써짐** | 기존 값 유지 |
+| 필수 | `languageCode`, `name` | 없음 |
+| `confirmed` 생략 시 | **`false` → 비공개화** (non-nullable bool) | 기존 값 유지 (nullable) |
+| 필드를 비우기 | 가능 | **불가** (생략과 구분 불가) |
+
+```
+PATCH {API_BASE_URL}/api/v1/articles/{articleId}
+
+{
+  "languageCode": "en-US",           // 수정할 번역 언어 (필수는 아니나 지정 권장)
+  "content": "<p>변경된 본문…</p>",  // 보낸 필드만 바뀐다
+  "markdown": "변경된 본문…"
+}
+```
 
 ```
 PUT {API_BASE_URL}/api/v1/articles/{articleId}
 
 {
-  "languageCode": "en-US",           // 수정할 번역 언어
-  "name": "Sample Article — Updated",
+  "languageCode": "en-US",           // 수정할 번역 언어 (필수)
+  "name": "Sample Article — Updated", // 필수
   "content": "<p>변경된 본문…</p>",
   "markdown": "변경된 본문…",
   "hospitalId": "GUID",
-  "status": "Active"
+  "status": "Active",
+  "confirmed": true                  // ⚠️ 빠뜨리면 false 로 덮어써져 공개 사이트에서 사라진다
 }
 ```
 
-응답: 수정된 `ArticleModel`. 발행 상태면 `revalidate` 로 반영.
+응답: 수정된 `ArticleModel`. 발행 상태면 `revalidate?includeCurrent=true` 로 반영.
+
+> `src/articles.js` 의 `updateArticle()` 은 호출부가 `confirmed` 를 주지 않으면 자동으로 `true` 를 채운다.
+> 직접 HTTP 로 호출한다면 이 보호가 없으므로 반드시 명시할 것.
+
+#### 수정 시 제약
+
+- **`slug` 는 바뀌지 않는다.** 본문에 `slug` 를 넣어도 무시된다(서버에서 의도적으로 비활성화 — SEO/URL 유지).
+  변경하려면 `PUT /{articleId}/slug` 를 따로 호출한다.
+- **`name` 은 UTF-8 250바이트 제한.** 글자 수가 아니라 바이트라서 **한글은 약 83자**가 상한.
+  초과 시 `400 Name exceeds the maximum byte length(250)`.
+- **`articleType` 은 `Blog` 또는 `MedicalContent` 만** 허용된다.
+- **`content`/`markdown`/`photo` 등에 base64 인라인 바이너리 금지.** 이미지는 `/api/v1/images` 로 먼저 업로드하고 URL 을 넣는다.
+- **`languageCode` 가 기존 번역과 다르면 수정이 아니라 새 번역이 INSERT 된다.** 오타가 데이터를 조용히 오염시키므로 주의.
+- **`hospitalId` 변경은 Admin 권한에서만** 반영된다. 병원 계정이 보내면 무시된다.
+- 해당 번역이 AI 번역 처리 중이면 `409 Translation is in progress`.
+
+#### 동시성 주의
+
+서버에 **낙관적 동시성 제어(ETag·버전·RowVersion)가 없다.** 같은 아티클을 사람과 스크립트가 동시에
+편집하면 **나중 쓰기가 경고 없이 앞선 변경을 덮어쓴다.** 자동화를 만든다면 변경 이력
+(`GET /{articleId}/histories`)의 마지막 작성자를 확인해 사람이 손댄 아티클은 건너뛰는 식의
+방어를 애플리케이션 쪽에서 직접 넣어야 한다.
 
 ### 6) 아티클 삭제
 

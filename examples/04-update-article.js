@@ -1,8 +1,10 @@
 // examples/04-update-article.js
-// 기존 아티클을 수정(PUT)한다.
+// 기존 아티클을 수정(PUT)한다. PUT 은 전체 덮어쓰기라 본문에서 빠뜨린 필드는 기본값이 된다.
+// 일부 필드만 고칠 거라면 PATCH(src/articles.js 의 patchArticle)가 더 안전하다.
 // 사용법: node examples/04-update-article.js <articleId>
 //
 // languageCode 는 수정할 번역(언어)을 가리킨다. 생성 때 쓴 언어와 맞춰야 해당 번역이 갱신된다.
+// 없는 언어를 주면 수정이 아니라 그 언어 번역이 새로 생기므로 주의.
 
 import "dotenv/config";
 import { updateArticle, revalidateArticle, ArticleStatus } from "../src/articles.js";
@@ -33,6 +35,9 @@ async function main() {
     hospitalId: HOSPITAL_ID,
     articleType: "Blog",
     status: ArticleStatus.Active,
+    // 지우지 말 것: 생략하면 서버가 IsConfirmed=false 로 덮어써서 아티클이 공개 사이트에서 사라진다.
+    // 공개 조건은 status=Active "그리고" confirmed=true 다. (src/articles.js updateArticle 주석 참고)
+    confirmed: true,
   };
 
   console.log(`[update-article] Updating ${articleId} ...`);
