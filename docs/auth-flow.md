@@ -169,10 +169,10 @@ Content-Type: application/json
 |---|---|
 | 아티클 목록 / 생성 | `GET` / `POST` `/api/v1/articles` |
 | 아티클 조회 / 수정 / 삭제 | `GET` / `PUT` / `PATCH` / `DELETE` `/api/v1/articles/{articleId}` |
-| SaaS 반영(재검증) | `POST` `/api/v1/articles/{articleId}/revalidate` |
+| SaaS 반영(재검증) | `POST` `/api/v1/articles/{articleId}/revalidate?includeCurrent=true` |
 | 이미지 업로드 | `POST` `/api/v1/images` (multipart/form-data, 필드명 `files`) |
 
-- 이 엔드포인트들은 병원 LocalManager 계정(=`hospital-content-api` audience)에 노출됩니다. 발행은 별도 엔드포인트 없이 `status` 필드(`Active`)로 제어하고, 공개 반영은 `revalidate` 로 처리합니다(자세한 내용은 [README](../README.md#콘텐츠-발행과-revalidate)).
+- 이 엔드포인트들은 병원 LocalManager 계정(=`hospital-content-api` audience)에 노출됩니다. 별도 publish 엔드포인트는 없고, 공개 조건은 `status == Active` **AND** 해당 언어 번역의 `confirmed == true` 입니다. 공개 반영은 `revalidate` 로 처리하며 **`?includeCurrent=true` 가 없으면 동작하지 않습니다**(자세한 내용은 [content-api-flow.md](content-api-flow.md) 및 [README](../README.md#6-콘텐츠-발행과-revalidate)).
 
 ### 401 처리
 

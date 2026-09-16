@@ -101,6 +101,8 @@ node examples/04-update-article.js <articleId>
 node examples/05-delete-article.js <articleId>
 ```
 
+> 예제 ④는 `PUT`(전체 덮어쓰기)을 씁니다. 일부 필드만 고치려면 `PATCH` 가 안전합니다 — [7장](#7-수정할-때-알아야-할-제약) 참고.
+
 ---
 
 ## 5. 문제 해결
@@ -111,28 +113,88 @@ node examples/05-delete-article.js <articleId>
 | `OTP를 못 받음` | 스팸함 확인, `MANAGER_EMAIL` 이 정확한지 확인, 5분 안에 입력. |
 | `401` / `audience ... invalid` | 토큰이 만료됐거나 권한 미설정. `node examples/01-login-otp.js` 로 다시 로그인하거나 클라우드호스피탈에 문의. |
 | 이미지 업로드 `Image cannot be loaded` | 지원하지 않는 포맷(예: SVG). PNG/JPEG 로 변환해 사용. |
-| 만든 아티클이 화면에 안 보임 | 언어 필터 때문. `ARTICLE_LANGUAGE_CODE` 와 관리 화면의 언어를 맞추세요(기본 `en-US`). |
+| 만든 아티클이 화면에 안 보임 | ① 언어 필터 — `ARTICLE_LANGUAGE_CODE` 와 관리 화면의 언어를 맞추세요(기본 `en-US`). ② `confirmed` 가 `false` — 관리 화면에는 보이는데 공개 사이트에만 안 보이면 이쪽입니다([6장](#6-콘텐츠-발행과-revalidate)). ③ `revalidate` 미반영 — `?includeCurrent=true` 없이 호출했는지 확인. |
 
 ---
 
 ## 6. 콘텐츠 발행과 revalidate
 
-아티클을 `status: "Active"` 로 만들면 서버에는 **발행 상태**로 저장되지만, 공개 사이트는 성능을 위해 페이지를 캐시하기 때문에 **바로 보이지 않을 수 있습니다.** 그래서 발행 후 한 번 더 호출합니다:
+### 공개 조건은 4가지 — `status` 하나가 아닙니다
+
+아티클이 공개 사이트에 보이려면 **아래를 전부** 만족해야 합니다.
+
+| 조건 | 설명 |
+|---|---|
+| `status` = `Active` | 발행 상태 |
+| `confirmed` = `true` | **해당 언어 번역이 "확인됨" 상태** |
+| 삭제되지 않음 | `DELETE` 하지 않은 상태 |
+| 숨김 아님 | 관리자가 숨김 처리하지 않은 상태 |
+
+`confirmed` 가 **두 번째 독립 발행 스위치**입니다. `status: "Active"` 여도 `confirmed` 가 `false` 면 공개 사이트에서 보이지 않습니다. (관리 화면에는 계속 보이기 때문에 알아차리기 어렵습니다.)
+
+> ⚠️ **PUT 으로 수정할 때 `confirmed` 를 빠뜨리면 아티클이 조용히 비공개가 됩니다.**
+> 서버는 `confirmed` 가 없으면 `false` 로 간주하고 덮어씁니다. 이 저장소의 `updateArticle()` 은
+> 호출부가 값을 주지 않으면 자동으로 `confirmed: true` 를 채워 이 사고를 막습니다.
+
+### 발행 후 공개 반영 (revalidate)
+
+발행 상태로 저장해도 공개 사이트는 성능을 위해 페이지를 캐시하기 때문에 **바로 보이지 않을 수 있습니다.** 그래서 발행 후 한 번 더 호출합니다:
 
 ```
-POST /api/v1/articles/{articleId}/revalidate
+POST /api/v1/articles/{articleId}/revalidate?includeCurrent=true
 ```
 
-이 요청이 공개 사이트의 해당 페이지를 다시 만들어 반영합니다. 정리하면:
+> ⚠️ **`?includeCurrent=true` 가 반드시 필요합니다.** 이 파라미터 없이 호출하면 서버가 재검증 작업을
+> 실행하지 않은 채 `200 true` 를 돌려줍니다. **성공한 것처럼 보이지만 아무 일도 일어나지 않습니다.**
+> 이 저장소의 `revalidateArticle()` 은 항상 이 파라미터를 붙입니다.
 
-- **저장(발행)** = 생성/수정 시 `status: "Active"`
-- **공개 반영** = `revalidate`
+정리하면:
+
+- **저장(발행)** = 생성/수정 시 `status: "Active"` **그리고** `confirmed: true`
+- **공개 반영** = `revalidate?includeCurrent=true`
 
 `Draft`/`Archived` 는 공개 대상이 아니라 `revalidate` 가 필요 없습니다. 예제도 `Active` 일 때만 자동으로 호출합니다. (별도 `publish` 엔드포인트는 없습니다.)
 
 ---
 
-## 7. 기술 참고 (개발자용)
+## 7. 수정할 때 알아야 할 제약
+
+### PATCH 를 권장합니다
+
+| | `PUT /api/v1/articles/{id}` | `PATCH /api/v1/articles/{id}` |
+|---|---|---|
+| 동작 | **전체 덮어쓰기** | **보낸 필드만 반영** |
+| 빠뜨린 필드 | 기본값으로 덮어써짐 (데이터 유실) | 기존 값 유지 |
+| `confirmed` 생략 시 | **`false` 로 덮어써짐 → 비공개화** | 기존 값 유지 (안전) |
+| 필수 필드 | `languageCode`, `name` | 없음 |
+
+**일부 필드만 고칠 거라면 `PATCH`(`patchArticle()`)를 쓰세요.** `PUT` 은 본문에 넣지 않은 필드가 전부 기본값으로 덮어써지므로, 전체 내용을 다시 보낼 때만 쓰는 게 안전합니다. 자동화·스크립트라면 특히 `PATCH` 를 권장합니다.
+
+### `languageCode` 를 틀리면 수정이 아니라 새 번역이 생깁니다
+
+아티클은 언어별 번역으로 나뉘어 있고, 요청 하나는 `languageCode` **한 개**만 건드립니다.
+
+> ⚠️ 그 언어의 번역이 **없으면 수정이 아니라 새 번역이 만들어집니다.** 오타 하나로 의도치 않은 언어
+> 번역이 생겨 데이터가 지저분해지므로, 생성할 때 쓴 언어와 정확히 맞추세요. (`.env` 의 `ARTICLE_LANGUAGE_CODE`)
+
+### `name` 은 250**바이트** 제한 — 한글은 약 83자
+
+제한 단위가 글자 수가 아니라 **UTF-8 바이트**입니다. 한글은 한 글자가 3바이트이므로:
+
+- 영문/숫자: 약 250자
+- **한글: 약 83자**
+
+넘으면 `400` 과 함께 `Name exceeds the maximum byte length(250)` 오류가 납니다.
+
+### `slug` 는 본문 수정으로 바뀌지 않습니다
+
+`slug`(주소용 이름)는 **아티클을 만들 때 `name` 에서 자동 생성되고, 이후 수정으로는 바뀌지 않습니다.** 이미 공개된 URL 이 깨지지 않도록 일부러 그렇게 되어 있습니다.
+
+정말 바꿔야 한다면 전용 엔드포인트가 따로 있습니다 (`PUT /api/v1/articles/{articleId}/slug`, 같은 250바이트 제한). **URL 이 바뀌면 검색 노출에 영향이 있으므로 꼭 필요할 때만 사용하세요.**
+
+---
+
+## 8. 기술 참고 (개발자용)
 
 이 예제는 순수 HTTP + OpenID Connect **CIBA** 흐름으로 인증하며 별도 SDK 의존성이 없습니다.
 
@@ -148,7 +210,7 @@ POST /api/v1/articles/{articleId}/revalidate
 
 ---
 
-## 8. 지원
+## 9. 지원
 
 - API 변경 통지: 계약 시 지정한 이메일 리스트로 최소 14일 전 사전 통지
 - LocalManager Swagger 문서: `https://api.cloudhospital.com/hospital-swagger`
